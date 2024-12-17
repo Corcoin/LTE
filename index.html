@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eSIM RSP Server</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+        }
+
+        header {
+            background-color: #0078d7;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+        }
+
+        main {
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+        }
+
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        button {
+            background-color: #0078d7;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #005fa3;
+        }
+
+        img {
+            max-width: 100%;
+            margin-top: 20px;
+            border: 1px solid #ddd;
+        }
+
+        .output {
+            background-color: #ffffff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>eSIM RSP Server</h1>
+    </header>
+    <main>
+        <div class="form-group">
+            <label for="imsi">IMSI</label>
+            <input type="text" id="imsi" placeholder="Enter IMSI (e.g., 001010123456789)">
+        </div>
+        <button onclick="getProfile()">Get Profile</button>
+        <button onclick="provisionEsim()">Provision eSIM</button>
+        <button onclick="generateQrCode()">Generate QR Code</button>
+
+        <div id="output" class="output"></div>
+        <img id="qrCodeImage" alt="QR Code will appear here">
+    </main>
+
+    <script>
+        const serverUrl = "http://127.0.0.1:5000";
+
+        // Fetch eSIM profile
+        function getProfile() {
+            const imsi = document.getElementById("imsi").value.trim();
+            fetch(`${serverUrl}/get_profile/${imsi}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        document.getElementById("output").innerHTML = `<p class="error">${data.error}</p>`;
+                    } else {
+                        document.getElementById("output").innerHTML = `
+                            <h3>Profile Details</h3>
+                            <p><strong>MCC:</strong> ${data.mcc}</p>
+                            <p><strong>MNC:</strong> ${data.mnc}</p>
+                            <p><strong>Auth Key:</strong> ${data.auth_key}</p>
+                            <p><strong>OPC:</strong> ${data.opc}</p>
+                            <p><strong>APN:</strong> ${data.apn}</p>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    document.getElementById("output").innerHTML = `<p class="error">Error fetching profile: ${error.message}</p>`;
+                });
+        }
+
+        // Provision eSIM
+        function provisionEsim() {
+            const imsi = document.getElementById("imsi").value.trim();
+            fetch(`${serverUrl}/provision`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ imsi: imsi }),
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === "success") {
+                        document.getElementById("output").innerHTML = `<p>${data.message}</p>`;
+                    } else {
+                        document.getElementById("output").innerHTML = `<p class="error">${data.message}</p>`;
+                    }
+                })
+                .catch(error => {
+                    document.getElementById("output").innerHTML = `<p class="error">Error provisioning eSIM: ${error.message}</p>`;
+                });
+        }
+
+        // Generate QR Code
+        function generateQrCode() {
+    const imsi = document.getElementById("imsi").value.trim();
+    const qrCodeImage = document.getElementById("qrCodeImage");
+    const output = document.getElementById("output");
+
+    qrCodeImage.src = ""; // Clear previous QR code
+    output.innerHTML = ""; // Clear any previous output
+
+    if (!imsi) {
+        output.innerHTML = `<p class="error">Please enter a valid IMSI.</p>`;
+        return;
+    }
+
+    // Attempt to fetch the QR code
+    fetch(`${serverUrl}/generate_qr/${imsi}`)
+        .then(response => {
+            if (response.ok) {
+                // If the response is successful, update the image source
+                qrCodeImage.src = `${serverUrl}/generate_qr/${imsi}`;
+                output.innerHTML = `<p>QR Code generated successfully!</p>`;
+            } else {
+                // Handle 404 or other errors
+                response.json()
+                    .then(data => {
+                        output.innerHTML = `<p class="error">${data.error || "QR Code generation failed."}</p>`;
+                    })
+                    .catch(() => {
+                        output.innerHTML = `<p class="error">Error: Unable to fetch QR Code. Ensure the IMSI is valid.</p>`;
+                    });
+            }
+        })
+        .catch(error => {
+            // Handle network errors or unexpected issues
+            output.innerHTML = `<p class="error">Error generating QR Code: ${error.message}</p>`;
+        });
+}
+
+    </script>
+</body>
+</html>
